@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
+*.egg-info/
+
+# Data
+data/raw/
+data/processed/  # optionally, if you don’t want to track processed CSVs
+
+# Models
+models/
+
+# VS Code
+.vscode/
+
+# Outputs
+outputs/
