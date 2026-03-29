@@ -26,8 +26,8 @@ def clean_data():
     # Cleaning data
     df = fix_invalid_values(df)
     df = date_time_features(df)
-    df = drop_columns(df)
     df = replace_blank_with_na(df)
+    df = drop_columns(df)
     df = rename_columns(df)
     
     # Drop null values
@@ -42,11 +42,21 @@ def clean_data():
     return df
 
 def fix_invalid_values(df):
+    
+    # Valid latitude and longitude values
     df = df[
-        df['LATDD83'].between(-90, 90) &
-        df['LONGDD83'].between(-180, 180)
+        df['LATDD83'].between(31, 50) &
+        df['LONGDD83'].between(-125, -102)
     ]
+    
+    # Years between 1960 and 2026
+    df = df[df['FIREYEAR'].between(1960, 2026)]
+    
+    # Total acres greater than 0
     df = df[(df['TOTALACRES'] > 0)]
+    
+    # Wildfire categorry only
+    df = df[df['FIRETYPECATEGORY'].isin(['WF'])]
     
     return df
 
@@ -68,27 +78,27 @@ def date_time_features(df):
     
     return df
 
-def drop_columns(df):
-    df = df.drop(columns=[
-        'OBJECTID', 'GLOBALID', 'FIREOCCURID', 'FIREOCCURID', 'CN', 'REVDATE', 'FIRENAME', 'COMPLEXNAME', 'FIREYEAR', 'UNIQFIREID', 
-        'SOFIRENUM', 'LOCALFIRENUM', 'SECURITYID', 'SIZECLASS', 'STATCAUSE', 'COMMENTS', 'DATASOURCE', 'OWNERAGENCY', 'UNITIDOWNER', 'PROTECTIONAGENCY', 
-        'UNITIDPROTECT', 'POINTTYPE', 'PERIMEXISTS', 'FIRERPTQC', 'DBSOURCEID', 'DBSOURCEDATE', 'ACCURACY', 'FIREOUTDATETIME', 'DISCOVERYDATETIME'
-    ])
-    
-    return df
-
 def replace_blank_with_na(df):
     ## Replace blank values with NA
     df['FIRETYPECATEGORY'] = df['FIRETYPECATEGORY'].apply(lambda x: pd.NA if isinstance(x, str) and x.strip() == "" else x)
     
     return df
 
+def drop_columns(df):
+    df = df.drop(columns=[
+        'X', 'Y', 'OBJECTID', 'GLOBALID', 'FIREOCCURID', 'FIREOCCURID', 'CN', 'REVDATE', 'FIRENAME', 'COMPLEXNAME', 'FIREYEAR', 'UNIQFIREID', 
+        'SOFIRENUM', 'LOCALFIRENUM', 'SECURITYID', 'SIZECLASS', 'COMMENTS', 'DATASOURCE', 'OWNERAGENCY', 'UNITIDOWNER', 'PROTECTIONAGENCY', 'UNITIDPROTECT', 
+        'FIRETYPECATEGORY','POINTTYPE', 'PERIMEXISTS', 'FIRERPTQC', 'DBSOURCEID', 'DBSOURCEDATE', 'ACCURACY', 'FIREOUTDATETIME', 'DISCOVERYDATETIME'
+    ])
+    
+    return df
+
 def rename_columns(df):
     df.rename(columns={
         'TOTALACRES': 'TOTAL_ACRES',
+        'STATCAUSE': 'STAT_CAUSE',
         'LATDD83': 'LAT',
         'LONGDD83': 'LONG',
-        'FIRETYPECATEGORY': 'FIRE_TYPE_CATEGORY'
     }, inplace=True)
     
     return df
