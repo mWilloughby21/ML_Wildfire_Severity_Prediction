@@ -2,106 +2,120 @@
 
 # python -m src.data.clean_data
 
+import time
 import pandas as pd
+import xarray as xr
+import numpy as np
 from pathlib import Path
 
-CSV_PATH = Path('data/raw/wildfires.csv')
+CLEANED_DATA_PATH = Path('data/processed/cleaned_data.csv')
+BASE_TABLE_PATH = Path("data/raw/ML_Project_Data.csv")
+WEATHER_FOLDER_PATH = Path("data/raw/ML_weather_data")
 
-## Force datatypes to str type
-DTYPE_MAP = {
-    "CN": "str",
-    "COMPLEXNAME": "str",
-    "SOFIRENUM": "str",
-    "LOCALFIRENUM": "str",
-    "SECURITYID": "str",
-    "COMMENTS": "str",
-    "DATASOURCE": "str"
-}
-
-
+## Main function for data cleaning
 def clean_data():
-    ## Read csv into dataframe
-    df = pd.read_csv(CSV_PATH, dtype=DTYPE_MAP, low_memory=False)
+    df, ds = load_data()
+    ds_daily = transform_weather_data(ds)
+    df = merge_data(df, ds_daily)
+    df.to_csv(CLEANED_DATA_PATH, index=False)
+    print_data_info(df)
+
+## Merge weather data with base table on date
+def merge_data(df: pd.DataFrame, ds_daily: xr.Dataset) -> pd.DataFrame:
+    features = []
     
-    # Cleaning data
-    df = fix_invalid_values(df)
-    df = date_time_features(df)
-    df = replace_blank_with_na(df)
-    df = drop_columns(df)
-    df = rename_columns(df)
+    # Extract weather features for each fire based on date and location
+    for i, fire in df.iterrows():
+        print(f"Processing fire {i + 1}/{len(df)}")
+        date = fire['START_DATE']
+        
+        # 3-day window of weather data leading up to fire date at fire location
+        window = ds_daily.sel(
+            valid_time=slice(date - pd.Timedelta(days=3), date)
+        )
+        window = window.sel(
+            latitude=fire['LATITUDE'],
+            longitude=fire['LONGITUDE'],
+            method='nearest'
+        )
+        
+        # Avereage features over 3-day window
+        window = window.compute()
+        
+        features.append({
+            'TEMPERATURE': window['TEMPERATURE'].mean().item(),
+            'PRECIPITATION': window['PRECIPITATION'].sum().item(),
+            'WIND_SPEED': window['WIND_SPEED'].mean().item(),
+            'HUMIDITY': window['HUMIDITY'].mean().item(),
+        })
     
-    # Drop null values
-    df = df.dropna()
+    # Create temp weather features DataFrame
+    weather_df = pd.DataFrame(features)
     
-    # Temp print dataframe info
-    print(df.shape)
-    print(df.head(5))
+    # Concatenate with base table
+    df = pd.concat([df.reset_index(drop=True), weather_df], axis=1)
+    
+    return df
+
+## Transform weather dataset to coorect features and daily resolution
+def transform_weather_data(ds):
+    # Get daily averages
+    ds_daily = xr.Dataset({
+        't2m': ds['t2m'].resample(valid_time='1D').mean(), # Temperature at 2m
+        'd2m': ds['d2m'].resample(valid_time='1D').mean(), # Dewpoint at 2m
+        'u10': ds['u10'].resample(valid_time='1D').mean(), # E-W wind at 10m
+        'v10': ds['v10'].resample(valid_time='1D').mean(), # N-S wind at 10m
+        'tp': ds['tp'].resample(valid_time='1D').sum(), # Total precipitation
+    })
+    
+    # Convert wind vectors to single magnitude
+    ds_daily['WIND_SPEED'] = np.sqrt(ds_daily['u10']**2 + ds_daily['v10']**2)
+    
+    # Rename precipitation variable
+    ds_daily = ds_daily.rename({'tp': 'PRECIPITATION'})
+    
+    # Convert temperature from Kelvin to Celsius
+    ds_daily['TEMPERATURE'] = ds_daily['t2m'] - 273.15
+    ds_daily['DEWPOINT'] = ds_daily['d2m'] - 273.15
+    
+    # Calculate relative humidity from temperature and dewpoint
+    ds_daily['HUMIDITY'] = 100 * np.exp(
+        (17.625*ds_daily['DEWPOINT']) / (243.04 + ds_daily['DEWPOINT'])
+        - (17.625*ds_daily['TEMPERATURE']) / (243.04 + ds_daily['TEMPERATURE'])
+    )
+    
+    # Drop original componets
+    ds_daily = ds_daily.drop_vars(['u10', 'v10', 'd2m', 't2m', 'DEWPOINT'])
+    
+    return ds_daily
+
+## Load base table and weather data
+def load_data():
+    # Load base table into DataFrame and set date format
+    df = pd.read_csv(BASE_TABLE_PATH)
+    df['START_DATE'] = pd.to_datetime(df['START_DATE']).dt.date
+    
+    # Load weather data into DataSet
+    ds = xr.open_mfdataset(
+        f'{WEATHER_FOLDER_PATH}/*/*.nc',
+        combine='by_coords',
+        engine='netcdf4',
+        chunks='auto',
+        compat='no_conflicts'
+    )
+    
+    return df, ds
+
+## Print basic info about the cleaned data
+def print_data_info(df):
+    print(df.head())
     print(df.info())
     print(df.describe())
-    
-    return df
 
-def fix_invalid_values(df):
-    
-    # Valid latitude and longitude values
-    df = df[
-        df['LATDD83'].between(31, 50) &
-        df['LONGDD83'].between(-125, -102)
-    ]
-    
-    # Years between 1960 and 2026
-    df = df[df['FIREYEAR'].between(1960, 2026)]
-    
-    # Total acres greater than 0
-    df = df[(df['TOTALACRES'] > 0)]
-    
-    # Wildfire categorry only
-    df = df[df['FIRETYPECATEGORY'].isin(['WF'])]
-    
-    return df
-
-def date_time_features(df):
-    # Create DURATION column in days
-    df['DURATION'] = (
-        pd.to_datetime(df['FIREOUTDATETIME'], errors='coerce') - 
-        pd.to_datetime(df['DISCOVERYDATETIME'], errors='coerce')
-    ).dt.total_seconds() / (86400)
-    
-    # Try to fill remaining NA with median of TOTALACRES and FIRETYPECATEGORY
-    df['DURATION'] = df.groupby(['TOTALACRES', 'FIRETYPECATEGORY'])['DURATION'].transform(lambda x: x.fillna(x.median()))
-    
-    # Try to fill remaining NA with median of TOTALACRES
-    df['DURATION'] = df.groupby(['TOTALACRES'])['DURATION'].transform(lambda x: x.fillna(x.median()))
-    
-    # Final Fallback
-    df['DURATION'] = df['DURATION'].fillna(df["DURATION"].median())
-    
-    return df
-
-def replace_blank_with_na(df):
-    ## Replace blank values with NA
-    df['FIRETYPECATEGORY'] = df['FIRETYPECATEGORY'].apply(lambda x: pd.NA if isinstance(x, str) and x.strip() == "" else x)
-    
-    return df
-
-def drop_columns(df):
-    df = df.drop(columns=[
-        'X', 'Y', 'OBJECTID', 'GLOBALID', 'FIREOCCURID', 'FIREOCCURID', 'CN', 'REVDATE', 'FIRENAME', 'COMPLEXNAME', 'FIREYEAR', 'UNIQFIREID', 
-        'SOFIRENUM', 'LOCALFIRENUM', 'SECURITYID', 'SIZECLASS', 'COMMENTS', 'DATASOURCE', 'OWNERAGENCY', 'UNITIDOWNER', 'PROTECTIONAGENCY', 'UNITIDPROTECT', 
-        'FIRETYPECATEGORY','POINTTYPE', 'PERIMEXISTS', 'FIRERPTQC', 'DBSOURCEID', 'DBSOURCEDATE', 'ACCURACY', 'FIREOUTDATETIME', 'DISCOVERYDATETIME'
-    ])
-    
-    return df
-
-def rename_columns(df):
-    df.rename(columns={
-        'TOTALACRES': 'TOTAL_ACRES',
-        'STATCAUSE': 'STAT_CAUSE',
-        'LATDD83': 'LAT',
-        'LONGDD83': 'LONG',
-    }, inplace=True)
-    
-    return df
+def temp():
+    df = pd.read_csv(CLEANED_DATA_PATH)
+    print(df.head())
 
 if __name__ == "__main__":
-    clean_data()
+    # clean_data()
+    temp()
