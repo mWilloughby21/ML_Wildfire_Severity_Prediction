@@ -2,11 +2,10 @@
 
 # python -m src.data.clean_data
 
-import time
+from pathlib import Path
 import pandas as pd
 import xarray as xr
 import numpy as np
-from pathlib import Path
 
 CLEANED_DATA_PATH = Path('data/processed/cleaned_data.csv')
 BASE_TABLE_PATH = Path("data/raw/ML_Project_Data.csv")
@@ -112,10 +111,5 @@ def print_data_info(df):
     print(df.info())
     print(df.describe())
 
-def temp():
-    df = pd.read_csv(CLEANED_DATA_PATH)
-    print(df.head())
-
 if __name__ == "__main__":
-    # clean_data()
-    temp()
+    clean_data()
