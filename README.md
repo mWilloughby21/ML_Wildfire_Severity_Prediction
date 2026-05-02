@@ -54,7 +54,7 @@ columns, one row per fire.
 
 | Feature                              | Source                  | Notes                                    |
 |--------------------------------------|-------------------------|------------------------------------------|
-| `ACRES_BURNED`                       | Fire record             | Log-transformed during modeling          |
+| `LOG_ACRES`                          | Derived from `ACRES_BURNED` | `log1p(acres)`; replaces raw acres   |
 | `LATITUDE`, `LONGITUDE`              | Fire record             | Fire location                            |
 | `FBFM40_CODE`                        | Fire record             | Surface fuel model (categorical)         |
 | `BPS_CODE`                           | Fire record             | Biophysical setting (categorical)        |
@@ -72,7 +72,9 @@ columns, one row per fire.
 | `ELEVATION`                          | SRTM 30m                | meters                                   |
 | `SLOPE`                              | SRTM 30m, derived       | degrees (Horn's method, 100 m kernel)    |
 | `ASPECT_SIN`, `ASPECT_COS`           | SRTM 30m, derived       | Cyclical encoding of compass aspect      |
-| `MONTH`, `DAY_OF_YEAR`               | Derived                 | With sin/cos cyclical encoding           |
+| `MONTH`, `DAY_OF_YEAR`               | Derived from `START_DATE` | Raw integer date features (XGBoost only) |
+| `MONTH_SIN`, `MONTH_COS`             | Derived from `START_DATE` | `sin/cos(2π · month / 12)`              |
+| `DOY_SIN`, `DOY_COS`                 | Derived from `START_DATE` | `sin/cos(2π · day_of_year / 365)`       |
 
 ## Models
 
