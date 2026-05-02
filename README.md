@@ -139,6 +139,8 @@ The menu offers:
                                     per-class F1 plot
 3. Compare XGBoost vs MLP         — head-to-head text table + side-by-side
                                     confusion matrices + per-class F1 bars
+4. Train and evaluate Ensemble    — XGBoost + 5-seed MLP ensemble combined by
+                                    soft-vote probability averaging
 q. Quit
 ```
 
