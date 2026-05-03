@@ -7,9 +7,8 @@ from sklearn.metrics import (
     accuracy_score,
     f1_score,
     precision_recall_fscore_support,
+    accuracy_score,
 )
-
-from sklearn.metrics import accuracy_score
 
 from src.models.ensemble_model import train_and_evaluate as run_ensemble
 from src.models.mlp_model import train_and_evaluate as run_mlp
@@ -19,6 +18,7 @@ from src.visualization.plots import (
     plot_feature_importance,
     plot_single_model_summary,
 )
+
 
 MENU = """
 ================================================================
@@ -31,7 +31,7 @@ MENU = """
     q. Quit
 """
 
-## Text Rendering Helpers
+
 def banner(title):
     line = '=' * 64
     print(f"\n{line}\n  {title}\n{line}")
@@ -47,13 +47,13 @@ def render_metrics_block(result):
     y_true, y_pred = result['y_true'], result['y_pred']
     classes = result['class_names']
     acc, macro_f1 = headline_metrics(result)
-
+    
     print(f"  Test set: {len(y_true)} fires (20% stratified holdout)")
     print()
     print(f"  Accuracy   :  {acc * 100:6.2f}%")
     print(f"  Macro F1   :  {macro_f1:6.3f}")
     print()
-
+    
     p, r, f1, support = precision_recall_fscore_support(
         y_true, y_pred, labels=range(len(classes)), zero_division=0,
     )
@@ -87,11 +87,11 @@ def render_comparison_block(result_a, result_b):
         if a == b:
             winner = '—'
         print(f"  {metric:<14} {fmt.format(a):>14} {fmt.format(b):>14} {winner:>10}")
-        
+    
     line('Accuracy', acc_a, acc_b, fmt='{:>13.2%}')
     line('Macro F1', mf1_a, mf1_b)
     print()
-
+    
     print("  Per-class F1:")
     print(f"    {'Class':<16} {name_a:>10} {name_b:>10} {'Winner':>10}")
     print("    " + "-" * 50)
@@ -99,8 +99,6 @@ def render_comparison_block(result_a, result_b):
         winner = name_a if fa > fb else (name_b if fb > fa else '—')
         print(f"    {cls:<16} {fa:>10.3f} {fb:>10.3f} {winner:>10}")
 
-
-## Menu Actions
 def action_xgboost():
     banner('XGBoost — train and evaluate')
     print('  Training (this takes a few seconds)...')
@@ -137,7 +135,6 @@ def action_mlp():
     plt.show()
     plt.close(fig)
 
-
 def action_compare():
     banner('Comparison — XGBoost vs MLP')
     print('  Training XGBoost...')
@@ -158,7 +155,7 @@ def action_ensemble():
     banner('Ensemble — XGBoost + MLP (soft vote)')
     print('  Training XGBoost and MLP seeds, then averaging probabilities...')
     result = run_ensemble()
-
+    
     print()
     render_metrics_block(result)
     print()
@@ -172,12 +169,10 @@ def action_ensemble():
     print()
     print('  Showing visualization — close the window to return to the menu.')
     fig = plot_single_model_summary(result)
-
+    
     plt.show()
     plt.close(fig)
 
-
-## Main
 def main():
     while True:
         print(MENU)
