@@ -11,9 +11,6 @@ venv/
 data/raw/
 data/processed/  # optionally, if you don’t want to track processed CSVs
 
-# Models
-models/
-
 # VS Code
 .vscode/
 
