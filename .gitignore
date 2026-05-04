@@ -9,13 +9,18 @@ venv/
 
 # Data
 data/raw/
-data/processed/  # optionally, if you don’t want to track processed CSVs
 
 # VS Code
 .vscode/
 
 # Outputs
 outputs/
+
+# PyInstaller build artifacts
+build/
+dist/
+build_venv/
+*.spec.bak
 
 # macOS
 .DS_Store
